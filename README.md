@@ -42,7 +42,7 @@ npm run dev
 ## 4. GitHubに公開する
 
 1. GitHubで新しいリポジトリを作成（例：`yukyu-techo`）。**プライベートでもPagesは無料で使えます**が、コード自体に個人情報は含まれないので迷ったらPublicで問題ありません
-2. `vite.config.js` の `base` を、リポジトリ名に合わせて書き換える（例：`/yukyu-techo/`）。`public/manifest.json` の `start_url` と `scope` も同じ値に揃えてください
+2. `vite.config.js` の `base` を、リポジトリ名に合わせて書き換える（例：`/yukyu-techo/`）。`public/manifest.json`はmanifest自身を基準にした相対パスにしてあるので、リポジトリ名を変えても編集不要です
 3. コードをpush
 
 ```

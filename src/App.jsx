@@ -125,6 +125,20 @@ function fireConfettiAt(el) {
   });
 }
 
+function authErrorMessage(e) {
+  const code = e && e.code;
+  if (code === "auth/unauthorized-domain") {
+    return "このサイトのドメインがFirebaseで許可されていません。Firebaseコンソール → Authentication → Settings → 承認済みドメイン、に今のサイトのドメインを追加してください。";
+  }
+  if (code === "auth/popup-blocked") {
+    return "ログイン用のポップアップがブロックされました。ブラウザのポップアップ許可設定を確認してください。";
+  }
+  if (code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request") {
+    return "";
+  }
+  return `ログインに失敗しました（${code || "unknown error"}）。しばらくしてからもう一度お試しください。`;
+}
+
 export default function App() {
   const [loaded, setLoaded] = useState(false);
   const [hireDate, setHireDate] = useState(null);
@@ -144,6 +158,7 @@ export default function App() {
 
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState("");
   const [syncState, setSyncState] = useState("idle"); // idle | syncing | synced | error
 
   const today = new Date();
@@ -175,6 +190,7 @@ export default function App() {
       setUser(u);
       setAuthLoading(false);
       if (!u) return;
+      setAuthError("");
       try {
         setSyncState("syncing");
         const remote = await loadRemoteData(u.uid);
@@ -195,6 +211,15 @@ export default function App() {
     });
     return () => unsub();
   }, []);
+
+  async function handleSignIn() {
+    setAuthError("");
+    try {
+      await signIn();
+    } catch (e) {
+      setAuthError(authErrorMessage(e));
+    }
+  }
 
   async function saveAll(newHireDate, newAdjustments, newUsages) {
     const data = { hireDate: newHireDate, adjustments: newAdjustments, usages: newUsages };
@@ -386,12 +411,16 @@ export default function App() {
     }
   }
 
-  if (!loaded) {
+  if (!loaded || authLoading) {
     return (
       <div style={{ minHeight: "100vh", background: PAPER, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_BODY, color: INK_SOFT }}>
         読み込み中…
       </div>
     );
+  }
+
+  if (!user) {
+    return <LoginGate onSignIn={handleSignIn} error={authError} />;
   }
 
   return (
@@ -532,30 +561,48 @@ export default function App() {
 }
 
 function AuthButton({ user, authLoading, syncState }) {
-  if (authLoading) return null;
-  if (user) {
-    const syncLabel = syncState === "syncing" ? "同期中…" : syncState === "error" ? "同期エラー" : "同期済み";
-    const syncColor = syncState === "error" ? BRICK : INK_SOFT;
-    return (
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-        <span style={{ fontSize: 10.5, color: syncColor }}>{syncLabel}</span>
-        <button
-          onClick={logOut}
-          title={user.email || ""}
-          style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: `1px solid ${LINE}`, borderRadius: 999, padding: "5px 10px", fontSize: 11, color: INK_SOFT, cursor: "pointer", fontFamily: FONT_BODY }}
-        >
-          <LogOut size={12} /> ログアウト
-        </button>
-      </div>
-    );
-  }
+  if (authLoading || !user) return null;
+  const syncLabel = syncState === "syncing" ? "同期中…" : syncState === "error" ? "同期エラー" : "同期済み";
+  const syncColor = syncState === "error" ? BRICK : INK_SOFT;
   return (
-    <button
-      onClick={signIn}
-      style={{ display: "flex", alignItems: "center", gap: 6, background: JADE, color: "#fff", border: "none", borderRadius: 999, padding: "7px 14px", fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: FONT_BODY, flexShrink: 0 }}
-    >
-      <LogIn size={13} /> ログインして同期
-    </button>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+      <span style={{ fontSize: 10.5, color: syncColor }}>{syncLabel}</span>
+      <button
+        onClick={logOut}
+        title={user.email || ""}
+        style={{ display: "flex", alignItems: "center", gap: 5, background: "none", border: `1px solid ${LINE}`, borderRadius: 999, padding: "5px 10px", fontSize: 11, color: INK_SOFT, cursor: "pointer", fontFamily: FONT_BODY }}
+      >
+        <LogOut size={12} /> ログアウト
+      </button>
+    </div>
+  );
+}
+
+function LoginGate({ onSignIn, error }) {
+  return (
+    <div style={{ minHeight: "100vh", background: PAPER, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_BODY, color: INK, padding: 20 }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap');
+      `}</style>
+      <div style={{ background: PAPER_CARD, border: `1px solid ${LINE}`, borderRadius: 4, padding: "32px 28px", maxWidth: 340, width: "100%", textAlign: "center" }}>
+        <div style={{ width: 52, height: 52, borderRadius: "50%", border: `2px solid ${JADE}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+          <Stamp size={26} color={JADE} />
+        </div>
+        <h1 style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 20, margin: "0 0 8px" }}>有給手帳</h1>
+        <p style={{ fontSize: 12, color: INK_SOFT, lineHeight: 1.7, margin: "0 0 22px" }}>
+          第三者に内容を見られないよう、ログインするまで記録は表示されません。
+        </p>
+        <button
+          onClick={onSignIn}
+          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: JADE, color: "#fff", border: "none", borderRadius: 3, padding: "11px 0", fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: FONT_BODY }}
+        >
+          <LogIn size={15} /> Googleでログイン
+        </button>
+        {error && (
+          <p style={{ fontSize: 11, color: BRICK, marginTop: 14, lineHeight: 1.6, textAlign: "left" }}>{error}</p>
+        )}
+      </div>
+    </div>
   );
 }
 
