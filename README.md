@@ -73,6 +73,21 @@ git push -u origin main
 - ログインしなくても単体のブラウザ内では使えます（localStorageのみ保存、同期はされません）
 - データが心配な場合は、ブラウザの開発者ツール（Application → Local Storage）から `yukyu-techo-data-v1` の値を手動でコピーしておくこともできます
 
+## 7. ログインできる人を自分だけに制限する
+
+デフォルトのままだと、Googleアカウントを持っていれば誰でもログインして（自分専用の別データとして）使えてしまいます。特定の人だけに絞りたい場合は、**2箇所を必ずセットで**変更してください（片方だけだと守られません）。
+
+1. **Firestoreのルール**（本当の防御はここ）
+   `firestore.rules` の `"your-email@gmail.com"` の部分を、実際に許可したいGoogleアカウントのメールアドレスに書き換え、Firebaseコンソールの「Firestore Database → ルール」タブに貼り付けて公開する
+2. **アプリ側の表示**（見た目のエラーメッセージ用）
+   `.env`（ローカル用）と、GitHubのSecrets（デプロイ用）の両方に `VITE_ALLOWED_EMAILS` を追加し、1と同じメールアドレスを入れる（複数人に許可する場合はカンマ区切り）
+
+```
+VITE_ALLOWED_EMAILS=your-email@gmail.com,family@gmail.com
+```
+
+`VITE_ALLOWED_EMAILS` を設定し忘れると、アプリ側の制限はかからず誰でもログイン画面までは進めてしまいます（Firestoreのルールさえ正しければ、データ自体は守られます）。設定を反映するにはGitHub Secretsの追加後、もう一度pushするかActionsを再実行してください。
+
 ## 困ったとき
 
 - **ログインのポップアップがブロックされる**：ブラウザのポップアップブロック設定を確認してください

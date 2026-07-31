@@ -78,6 +78,16 @@ function computeLegalGrants(hireDate, today) {
 const LOCAL_KEY = "yukyu-techo-data-v1";
 const DEFAULT_HIRE_DATE = "2022-04-01"; // 毎回入力しなくて済むよう、入社日を固定しておく
 
+const ALLOWED_EMAILS = (import.meta.env.VITE_ALLOWED_EMAILS || "")
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
+
+function isAllowedEmail(email) {
+  if (ALLOWED_EMAILS.length === 0) return true; // 未設定の場合は制限しない（設定忘れ防止）
+  return !!email && ALLOWED_EMAILS.includes(email.toLowerCase());
+}
+
 function loadLocal() {
   try {
     const raw = localStorage.getItem(LOCAL_KEY);
@@ -159,6 +169,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState("");
+  const [unauthorized, setUnauthorized] = useState(false);
   const [syncState, setSyncState] = useState("idle"); // idle | syncing | synced | error
 
   const today = new Date();
@@ -189,7 +200,17 @@ export default function App() {
     const unsub = watchAuth(async (u) => {
       setUser(u);
       setAuthLoading(false);
-      if (!u) return;
+      if (!u) {
+        return;
+      }
+      if (!isAllowedEmail(u.email)) {
+        // 許可されていないアカウントは、データに一切触れさせずすぐにログアウトする
+        setUnauthorized(true);
+        setSyncState("idle");
+        await logOut();
+        return;
+      }
+      setUnauthorized(false);
       setAuthError("");
       try {
         setSyncState("syncing");
@@ -214,6 +235,7 @@ export default function App() {
 
   async function handleSignIn() {
     setAuthError("");
+    setUnauthorized(false);
     try {
       await signIn();
     } catch (e) {
@@ -419,6 +441,10 @@ export default function App() {
     );
   }
 
+  if (unauthorized) {
+    return <NotAuthorizedPage onRetry={handleSignIn} />;
+  }
+
   if (!user) {
     return <LoginGate onSignIn={handleSignIn} error={authError} />;
   }
@@ -574,6 +600,31 @@ function AuthButton({ user, authLoading, syncState }) {
       >
         <LogOut size={12} /> ログアウト
       </button>
+    </div>
+  );
+}
+
+function NotAuthorizedPage({ onRetry }) {
+  return (
+    <div style={{ minHeight: "100vh", background: PAPER, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: FONT_BODY, color: INK, padding: 20 }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap');
+      `}</style>
+      <div style={{ background: PAPER_CARD, border: `1px solid ${BRICK}`, borderRadius: 4, padding: "32px 28px", maxWidth: 340, width: "100%", textAlign: "center" }}>
+        <div style={{ width: 52, height: 52, borderRadius: "50%", border: `2px solid ${BRICK}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+          <X size={26} color={BRICK} />
+        </div>
+        <h1 style={{ fontFamily: FONT_DISPLAY, fontWeight: 700, fontSize: 18, margin: "0 0 8px" }}>認証されていない為表示できません</h1>
+        <p style={{ fontSize: 12, color: INK_SOFT, lineHeight: 1.7, margin: "0 0 22px" }}>
+          このGoogleアカウントには、このアプリを開く権限がありません。許可されたアカウントでログインし直してください。
+        </p>
+        <button
+          onClick={onRetry}
+          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: INK, color: "#fff", border: "none", borderRadius: 3, padding: "11px 0", fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: FONT_BODY }}
+        >
+          <LogIn size={15} /> 別のアカウントでログインし直す
+        </button>
+      </div>
     </div>
   );
 }

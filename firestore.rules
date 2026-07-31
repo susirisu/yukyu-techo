@@ -1,9 +1,17 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 本人（ログイン中のuid）だけが自分のデータを読み書きできる
+    // 許可された本人（メールアドレスがリストにある人）だけが、
+    // 自分のuidのデータを読み書きできる。
+    // ↓のメールアドレスを、実際にログインを許可したいGoogleアカウントに書き換えてください。
+    // 家族など複数人に許可したい場合はカンマ区切りで追加できます。
     match /users/{uid}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read, write: if request.auth != null
+        && request.auth.uid == uid
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+          "your-email@gmail.com"
+        ];
     }
   }
 }
